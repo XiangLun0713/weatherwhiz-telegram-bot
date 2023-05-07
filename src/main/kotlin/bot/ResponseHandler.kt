@@ -1,6 +1,7 @@
 package bot
 
 import models.CurrentResponse
+import models.Day
 import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.MessageContext
 import org.telegram.abilitybots.api.sender.MessageSender
@@ -143,11 +144,13 @@ class ResponseHandler(
             // send them their current weather information
             val message = SendMessage()
             message.text = """
+                Current Weather Information
+                
                 ${getEmojiForConditionCode(currentResponse.current.condition.code)} ${currentResponse.current.condition.text}
                                 
                 🌡️ Temperature: ${currentResponse.current.temp_c}°C / ${currentResponse.current.temp_f}°F
                 
-                💨 Wind speed: ${currentResponse.current.wind_kph}km/h
+                💨 Wind Speed: ${currentResponse.current.wind_kph}km/h
                 
                 💧 Humidity: ${currentResponse.current.humidity}%
                 
@@ -158,6 +161,41 @@ class ResponseHandler(
             message.chatId = chatID.toString()
             sender.execute(message)
         } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun replyToToday(ctx: MessageContext) {
+        try {
+            val chatID = ctx.chatId()
+            // retrieve the user's lat and long from db
+            val lat: Double? = latitudeDB[chatID]
+            val long: Double? = longitudeDB[chatID]
+            // if the user has not configured their location yet, send the message to ask for it
+            if (lat == null || long == null) {
+                sendLocationNotConfiguredMessage(chatID)
+                return
+            }
+            // get today's weather info
+            val forecastResponse = weatherService.getForecastResponseByLatLong(lat, long)
+            val day: Day = forecastResponse.forecast.forecastday[0].day
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                Today's Weather Information
+                
+                ${getEmojiForConditionCode(day.condition.code)} ${day.condition.text}
+                
+                🌧️ Rain: ${if (day.daily_will_it_rain == 1) "Yes" else "No"} (${day.daily_chance_of_rain}% chance)
+                
+                🌡️ Average Temperature: ${day.avgtemp_c}°C / ${day.avgtemp_f}°F
+                
+                💧 Average Humidity: ${day.avghumidity.toInt()}%
+                
+                ☀️ UV Index: ${day.uv}
+            """.trimIndent()
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
             e.printStackTrace()
         }
     }

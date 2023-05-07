@@ -1,5 +1,8 @@
 package models
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Hour(
     val time_epoch: Long,
     val time: String,

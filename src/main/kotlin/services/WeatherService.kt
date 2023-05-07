@@ -17,7 +17,7 @@ interface WeatherService {
             return WeatherServiceImpl(
                 client = HttpClient(CIO) {
                     install(ContentNegotiation) {
-                        json(Json{
+                        json(Json {
                             ignoreUnknownKeys = true
                         })
                     }
@@ -29,5 +29,5 @@ interface WeatherService {
     suspend fun getCurrentResponseByLatLong(latitude: Double, longitude: Double): CurrentResponse
     suspend fun getTimezoneResponseByLatLong(latitude: Double, longitude: Double): TimezoneResponse
     suspend fun getTimezoneResponseByCityName(cityName: String): TimezoneResponse
-    suspend fun getForecastResponseByLatLong(latitude: Double, longitude: Double): ForecastResponse
+    suspend fun getForecastResponseByLatLong(latitude: Double, longitude: Double, days: Int = 3): ForecastResponse
 }

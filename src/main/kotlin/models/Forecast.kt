@@ -1,5 +1,8 @@
 package models
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Forecast(
-    val forecastDay: List<ForecastDay>,
+    val forecastday: List<ForecastDay>,
 )

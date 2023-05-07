@@ -36,11 +36,17 @@ class WeatherServiceImpl(
         }.body<TimezoneResponse>()
     }
 
-    override suspend fun getForecastResponseByLatLong(latitude: Double, longitude: Double): ForecastResponse {
+    override suspend fun getForecastResponseByLatLong(
+        latitude: Double,
+        longitude: Double,
+        days: Int
+    ): ForecastResponse {
         return client.get {
             url(APIRoute.FORECAST)
             parameter("key", Secret.WEATHER_API_KEY)
             parameter("q", "$latitude, $longitude")
+            parameter("days", days)
+            parameter("alerts", "yes")
         }.body<ForecastResponse>()
     }
 }

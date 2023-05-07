@@ -1,5 +1,8 @@
 package models
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Astro(
     val sunrise: String,
     val sunset: String,

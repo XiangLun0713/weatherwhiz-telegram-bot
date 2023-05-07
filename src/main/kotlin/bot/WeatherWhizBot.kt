@@ -62,6 +62,12 @@ class WeatherWhizBot(
         }
     }
 
+    fun handleTodayCommand() = generateAbility(CommandConstant.TODAY) { ctx ->
+        CoroutineScope(Dispatchers.Default).launch {
+            responseHandler.replyToToday(ctx)
+        }
+    }
+
     // get the configured location
     fun handleLocationCommand() =
         generateAbility(CommandConstant.LOCATION) { ctx -> responseHandler.replyToLocation(ctx) }
