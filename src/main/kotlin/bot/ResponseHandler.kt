@@ -4,71 +4,121 @@ import models.CurrentResponse
 import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.MessageContext
 import org.telegram.abilitybots.api.sender.MessageSender
-import org.telegram.abilitybots.api.util.AbilityUtils
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import services.WeatherService
-import utils.ChatState
+import utils.CommandConstant
 import utils.DBConstant
 
 
-class ResponseHandler(private val sender: MessageSender, db: DBContext) {
-    private val chatStateDB: MutableMap<Long, ChatState>
+class ResponseHandler(
+    private val weatherService: WeatherService,
+    private val sender: MessageSender,
+    db: DBContext
+) {
     private val latitudeDB: MutableMap<Long, Double>
     private val longitudeDB: MutableMap<Long, Double>
+    private val locationNameDB: MutableMap<Long, String>
 
     init {
-        chatStateDB = db.getMap(DBConstant.CHAT_STATES)
         latitudeDB = db.getMap(DBConstant.LATITUDE)
         longitudeDB = db.getMap(DBConstant.LONGITUDE)
+        locationNameDB = db.getMap(DBConstant.LOCATION_NAME)
     }
 
     fun replyToStart(ctx: MessageContext) {
         try {
             // prepare the welcome message to be sent
             val message = SendMessage()
-            message.text =
-                "Hello ${ctx.user().userName}!\n\nI'm WeatherWhiz, your personal weather assistant.\n\nPlease enter /config to configure your current location and receive real-time weather updates and forecasts right away!"
+            message.text = """
+                Hello ${ctx.user().userName}!
+
+                I'm WeatherWhiz, your personal weather assistant.
+
+                You have to configure your current location before you can use any of my available features.
+
+                Please configure your location through one of the following approaches:
+                
+                1.  By sending me your location directly
+                
+                2.  By sending me your city's name using /city
+                        Format: /city <city name> 
+                        For example, /city Paris
+                
+                3.  By sending me your location's latitude and longitude using /latlong
+                        Format: /latlong <latitude> <longitude>
+                        For example, /latlong 48.8567 2.3508
+            """.trimIndent()
             message.chatId = ctx.chatId().toString()
             // sent the welcome message
             sender.execute(message)
-            // set the chat state as location not configured
-            chatStateDB[ctx.chatId()] = ChatState.CHAT_STATE_LOCATION_NOT_CONFIGURED
         } catch (e: TelegramApiException) {
             e.printStackTrace()
         }
     }
 
-    fun replyOnLocationReceived(upd: Update?) {
-        if (upd != null) {
-            try {
-                // store the user's location in locationDB
-                val chatID = upd.message.chatId
-                latitudeDB[chatID] = upd.message.location.latitude
-                longitudeDB[chatID] = upd.message.location.longitude
-                // set the chat state as location configured
-                chatStateDB[chatID] = ChatState.CHAT_STATE_LOCATION_CONFIGURED
-                // prepare the message to be sent
-                val message = SendMessage()
-                message.text = "Location received!\n\nPlease enter /help to get you started!"
-                message.chatId = AbilityUtils.getChatId(upd).toString()
-                // send the message
-                sender.execute(message)
-            } catch (e: TelegramApiException) {
-                e.printStackTrace()
-            }
+    suspend fun replyOnLocationReceived(upd: Update?) {
+        if (upd == null) return
+        try {
+            val chatID = upd.message.chatId
+            val lat = upd.message.location.latitude
+            val long = upd.message.location.longitude
+            // store the user's location in locationDB
+            configureLocation(chatID, lat, long)
+            // send location configured success message
+            sendLocationConfiguredSuccessfulMessage(chatID)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
         }
+    }
+
+    suspend fun replyToCity(ctx: MessageContext) {
+        val userInput = ctx.update().message.text
+        val chatID = ctx.chatId()
+        // if user does not enter anything
+        if (userInput.trim() == "/${CommandConstant.CITY}") {
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                Mal-formatted input.
+                Format: /city <city name> 
+                For example, /city Paris
+            """.trimIndent()
+            sender.execute(message)
+            return
+        }
+        // configure user's location
+        configureLocation(chatID, cityName = userInput)
+        // send location configured success message
+        sendLocationConfiguredSuccessfulMessage(chatID)
+    }
+
+    suspend fun replyToLatLong(ctx: MessageContext) {
+        val userInput = ctx.update().message.text.substring("/latlong ".length)
+        val chatID = ctx.chatId()
+        // extract latitude and longitude
+        val indexOfSpace: Int = userInput.indexOf(' ')
+        val lat: Double = userInput.substring(0, indexOfSpace).toDouble()
+        val long: Double = userInput.substring(indexOfSpace + 1).toDouble()
+        // configure user's location
+        configureLocation(chatID, lat = lat, long = long)
+        // send location configured success message
+        sendLocationConfiguredSuccessfulMessage(chatID)
     }
 
     fun replyToLocation(ctx: MessageContext) {
         try {
             val chatID = ctx.chatId()
-            val lat = latitudeDB[chatID]
-            val long = longitudeDB[chatID]
+            val locationName = locationNameDB[chatID]
+            // if location not configured
+            if (locationName == null) {
+                sendLocationNotConfiguredMessage(chatID)
+                return
+            }
+            // if location exists
             val message = SendMessage()
-            message.text =
-                "Location for chat $chatID is latitude:${lat ?: "Not found"}, longitude:${long ?: "Not found"} "
+            message.text = "Your location is $locationName"
             message.chatId = chatID.toString()
             sender.execute(message)
         } catch (e: TelegramApiException) {
@@ -76,26 +126,21 @@ class ResponseHandler(private val sender: MessageSender, db: DBContext) {
         }
     }
 
-    suspend fun replyToWeather(ctx: MessageContext, weatherService: WeatherService) {
-        println("called")
+    suspend fun replyToWeather(ctx: MessageContext) {
         try {
             val chatID = ctx.chatId()
+            // retrieve the user's lat and long from db
             val lat: Double? = latitudeDB[chatID]
             val long: Double? = longitudeDB[chatID]
             // if the user has not configured their location yet, send the message to ask for it
-            if (chatStateDB[chatID] == null || chatStateDB[chatID] == ChatState.CHAT_STATE_LOCATION_NOT_CONFIGURED) {
-                val message = SendMessage()
-                message.text = """
-                    You have not configured your location yet.
-                    
-                    Please enter /config to configure your location!
-                """.trimIndent()
-                message.chatId = chatID.toString()
-                sender.execute(message)
+            if (lat == null || long == null) {
+                sendLocationNotConfiguredMessage(chatID)
                 return
             }
-            // if the user has configured their location before, send their current weather information
-            val currentResponse: CurrentResponse = weatherService.getCurrentByLatLong(lat!!, long!!)
+            // if the user has configured their location before,
+            // make API call
+            val currentResponse: CurrentResponse = weatherService.getCurrentResponseByLatLong(lat, long)
+            // send them their current weather information
             val message = SendMessage()
             message.text = """
                 ${getEmojiForConditionCode(currentResponse.current.condition.code)} ${currentResponse.current.condition.text}
@@ -129,5 +174,54 @@ class ResponseHandler(private val sender: MessageSender, db: DBContext) {
         1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1237, 1255, 1258, 12611, 1264 -> "❄️"
         1147 -> "🌫️❄️"
         else -> ""
+    }
+
+    private suspend fun configureLocation(chatID: Long, lat: Double, long: Double) {
+        latitudeDB[chatID] = lat
+        longitudeDB[chatID] = long
+        val timezoneResponse = weatherService.getTimezoneResponseByLatLong(lat, long)
+        locationNameDB[chatID] = if (timezoneResponse.location.region.isEmpty()) {
+            "${timezoneResponse.location.name}, ${timezoneResponse.location.country}"
+        } else {
+            "${timezoneResponse.location.name}, ${timezoneResponse.location.region}, ${timezoneResponse.location.country}"
+        }
+    }
+
+    private suspend fun configureLocation(chatID: Long, cityName: String) {
+        val timezoneResponse = weatherService.getTimezoneResponseByCityName(cityName)
+        latitudeDB[chatID] = timezoneResponse.location.lat
+        longitudeDB[chatID] = timezoneResponse.location.lon
+        locationNameDB[chatID] = if (timezoneResponse.location.region.isEmpty()) {
+            "${timezoneResponse.location.name}, ${timezoneResponse.location.country}"
+        } else {
+            "${timezoneResponse.location.name}, ${timezoneResponse.location.region}, ${timezoneResponse.location.country}"
+        }
+    }
+
+    private fun sendLocationNotConfiguredMessage(chatID: Long) {
+        val message = SendMessage()
+        message.text = """
+            You have not configured your location yet. 
+            
+            Please configure your location through the following approaches:
+            
+            1. By sending me your location directly
+            
+            2. By sending me your city's name using the /city command using the format /city <city name>. For example, /city Paris
+            
+            3. By sending me your location's latitude and longitude using the /latlong command using the format /latlong <latitude> <longitude>. For example, /latlong 48.8567 2.3508
+        """.trimIndent()
+        message.chatId = chatID.toString()
+        sender.execute(message)
+    }
+
+    private fun sendLocationConfiguredSuccessfulMessage(chatID: Long) {
+        val message = SendMessage()
+        message.text = """
+            Location configured successfully!
+            Your location is ${locationNameDB[chatID]}
+        """.trimIndent()
+        message.chatId = chatID.toString()
+        sender.execute(message)
     }
 }

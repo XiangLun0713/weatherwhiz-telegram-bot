@@ -3,7 +3,7 @@ package models
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class LocationResponse(
+data class Location(
     val name: String,
     val region: String,
     val country: String,

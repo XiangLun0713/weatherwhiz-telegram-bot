@@ -6,6 +6,8 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import models.CurrentResponse
+import models.ForecastResponse
+import models.TimezoneResponse
 
 
 interface WeatherService {
@@ -24,5 +26,8 @@ interface WeatherService {
         }
     }
 
-    suspend fun getCurrentByLatLong(latitude: Double, longitude: Double): CurrentResponse
+    suspend fun getCurrentResponseByLatLong(latitude: Double, longitude: Double): CurrentResponse
+    suspend fun getTimezoneResponseByLatLong(latitude: Double, longitude: Double): TimezoneResponse
+    suspend fun getTimezoneResponseByCityName(cityName: String): TimezoneResponse
+    suspend fun getForecastResponseByLatLong(latitude: Double, longitude: Double): ForecastResponse
 }

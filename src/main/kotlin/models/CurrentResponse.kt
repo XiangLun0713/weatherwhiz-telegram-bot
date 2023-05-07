@@ -4,6 +4,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class CurrentResponse(
-    val location: LocationResponse,
-    val current: CurrentWeatherResponse
+    val location: Location,
+    val current: Current
 )

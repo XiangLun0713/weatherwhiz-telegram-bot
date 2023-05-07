@@ -3,7 +3,7 @@ package models
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ConditionResponse(
+data class Condition(
     val text: String,
     val icon: String,
     val code: Int

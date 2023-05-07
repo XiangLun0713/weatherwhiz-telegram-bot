@@ -1,7 +1,0 @@
-package utils
-
-enum class ChatState {
-    CHAT_STATE_LOCATION_CONFIGURED,
-    CHAT_STATE_LOCATION_NOT_CONFIGURED
-}
-
