@@ -4,6 +4,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
 import services.WeatherService
 
+
 fun main() {
     println("Starting bot")
     // create WeatherServiceImpl instance

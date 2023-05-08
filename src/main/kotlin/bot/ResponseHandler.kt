@@ -1,7 +1,12 @@
 package bot
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import models.CurrentResponse
 import models.Day
+import models.TimeZoneOffset
+import models.TimezoneResponse
 import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.MessageContext
 import org.telegram.abilitybots.api.sender.MessageSender
@@ -11,6 +16,9 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import services.WeatherService
 import utils.CommandConstant
 import utils.DBConstant
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 
 class ResponseHandler(
@@ -21,11 +29,15 @@ class ResponseHandler(
     private val latitudeDB: MutableMap<Long, Double>
     private val longitudeDB: MutableMap<Long, Double>
     private val locationNameDB: MutableMap<Long, String>
+    private val subscribeToWeatherUpdateDB: MutableSet<Long>
+    private val timezoneOffsetInMillisDB: MutableMap<Long, Long>
 
     init {
         latitudeDB = db.getMap(DBConstant.LATITUDE)
         longitudeDB = db.getMap(DBConstant.LONGITUDE)
         locationNameDB = db.getMap(DBConstant.LOCATION_NAME)
+        subscribeToWeatherUpdateDB = db.getSet(DBConstant.SUBSCRIBE_TO_WEATHER_UPDATE)
+        timezoneOffsetInMillisDB = db.getMap(DBConstant.TIMEZONE_OFFSET)
     }
 
     fun replyToStart(ctx: MessageContext) {
@@ -43,13 +55,13 @@ class ResponseHandler(
                 
                 1.  By sending me your location directly
                 
-                2.  By sending me your city's name using /city
-                        Format: /city <city name> 
-                        For example, /city Paris
+                2.  By sending me your city's name using /${CommandConstant.CITY}
+                        Format: /${CommandConstant.CITY} <city name> 
+                        For example, /${CommandConstant.CITY} Paris
                 
-                3.  By sending me your location's latitude and longitude using /latlong
-                        Format: /latlong <latitude> <longitude>
-                        For example, /latlong 48.8567 2.3508
+                3.  By sending me your location's latitude and longitude using /${CommandConstant.LAT_LONG}
+                        Format: /${CommandConstant.LAT_LONG} <latitude> <longitude>
+                        For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
             """.trimIndent()
             message.chatId = ctx.chatId().toString()
             // sent the welcome message
@@ -57,6 +69,36 @@ class ResponseHandler(
         } catch (e: TelegramApiException) {
             e.printStackTrace()
         }
+    }
+
+    fun replyToHelp(ctx: MessageContext) {
+        try {
+            // prepare the help message to be sent
+            val message = SendMessage()
+            message.text = """
+                Thanks for using WeatherWhiz. Here's a quick guide to help you navigate and use our bot effectively:
+
+                1. To see the current configured location, type /location and you will receive the name of the location.
+
+                2. To configure your location using latitude and longitude, type /latlong followed by your latitude and longitude in the format <latitude>,<longitude>. For example, /latlong 48.8567,2.3508
+
+                3. To configure your location using city name, type /city followed by the name of your city. For example, /city Paris
+
+                4. To get today's weather information for your configured location, type /today and you will receive a summary of today's weather.
+
+                5. To get the current weather information for your configured location, type /weather and you will receive the current weather information.
+
+                6. To subscribe to daily weather updates for your configured location, type /subscribe and you will receive daily weather updates.
+
+                7. To unsubscribe from daily weather updates, type /unsubscribe.
+            """.trimIndent()
+            message.chatId = ctx.chatId().toString()
+            // sent the help message
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+
     }
 
     suspend fun replyOnLocationReceived(upd: Update?) {
@@ -75,16 +117,16 @@ class ResponseHandler(
     }
 
     suspend fun replyToCity(ctx: MessageContext) {
-        val userInput = ctx.update().message.text
+        val userInput = ctx.update().message.text.substring("/${CommandConstant.CITY}".length).trim()
         val chatID = ctx.chatId()
         // if user does not enter anything
-        if (userInput.trim() == "/${CommandConstant.CITY}") {
+        if (userInput.isEmpty()) {
             val message = SendMessage()
             message.chatId = chatID.toString()
             message.text = """
                 Mal-formatted input.
-                Format: /city <city name> 
-                For example, /city Paris
+                Format: /${CommandConstant.CITY} <city name> 
+                For example, /${CommandConstant.CITY} Paris
             """.trimIndent()
             sender.execute(message)
             return
@@ -96,8 +138,19 @@ class ResponseHandler(
     }
 
     suspend fun replyToLatLong(ctx: MessageContext) {
-        val userInput = ctx.update().message.text.substring("/latlong ".length)
+        val userInput = ctx.update().message.text.substring("/${CommandConstant.LAT_LONG}".length).trim()
         val chatID = ctx.chatId()
+        if (userInput.isEmpty() || !userInput.matches("^[+-]?\\d+(?:\\.\\d+)?\\s[+-]?\\d+(?:\\.\\d+)?\$".toRegex())) {
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                Mal-formatted input.
+                Format: /${CommandConstant.LAT_LONG} <latitude> <longitude> 
+                For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+            """.trimIndent()
+            sender.execute(message)
+            return
+        }
         // extract latitude and longitude
         val indexOfSpace: Int = userInput.indexOf(' ')
         val lat: Double = userInput.substring(0, indexOfSpace).toDouble()
@@ -106,25 +159,6 @@ class ResponseHandler(
         configureLocation(chatID, lat = lat, long = long)
         // send location configured success message
         sendLocationConfiguredSuccessfulMessage(chatID)
-    }
-
-    fun replyToLocation(ctx: MessageContext) {
-        try {
-            val chatID = ctx.chatId()
-            val locationName = locationNameDB[chatID]
-            // if location not configured
-            if (locationName == null) {
-                sendLocationNotConfiguredMessage(chatID)
-                return
-            }
-            // if location exists
-            val message = SendMessage()
-            message.text = "Your location is $locationName"
-            message.chatId = chatID.toString()
-            sender.execute(message)
-        } catch (e: TelegramApiException) {
-            e.printStackTrace()
-        }
     }
 
     suspend fun replyToWeather(ctx: MessageContext) {
@@ -163,19 +197,19 @@ class ResponseHandler(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
     }
 
-    suspend fun replyToToday(ctx: MessageContext) {
+    suspend fun replyToToday(chatID: Long) {
+        // retrieve the user's lat and long from db
+        val lat: Double? = latitudeDB[chatID]
+        val long: Double? = longitudeDB[chatID]
+        // if the user has not configured their location yet, send the message to ask for it
+        sendLocationNotConfiguredMessage(chatID)
+        if (lat == null || long == null) {
+            return
+        }
         try {
-            val chatID = ctx.chatId()
-            // retrieve the user's lat and long from db
-            val lat: Double? = latitudeDB[chatID]
-            val long: Double? = longitudeDB[chatID]
-            // if the user has not configured their location yet, send the message to ask for it
-            if (lat == null || long == null) {
-                sendLocationNotConfiguredMessage(chatID)
-                return
-            }
             // get today's weather info
             val forecastResponse = weatherService.getForecastResponseByLatLong(lat, long)
             val day: Day = forecastResponse.forecast.forecastday[0].day
@@ -200,6 +234,78 @@ class ResponseHandler(
         }
     }
 
+    fun replyToLocation(ctx: MessageContext) {
+        try {
+            val chatID = ctx.chatId()
+            val locationName = locationNameDB[chatID]
+            // if location not configured
+            if (locationName == null) {
+                sendLocationNotConfiguredMessage(chatID)
+                return
+            }
+            // if location exists
+            val message = SendMessage()
+            message.text = "Your location is $locationName"
+            message.chatId = chatID.toString()
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun replyToSubscribe(ctx: MessageContext) {
+        try {
+            val chatID = ctx.chatId()
+            // add this user to subscribe list
+            subscribeToWeatherUpdateDB.add(chatID)
+            // send success message
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                You have successfully subscribed to daily weather updates in the morning.
+                
+                Please note that due to timezone differences, it may take up to a day for the change in your subscription status to take effect, and you may not receive your first weather update notification on the same day as your subscription.                
+                
+                To unsubscribe, please enter /${CommandConstant.UNSUBSCRIBE}
+            """.trimIndent()
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun replyToUnsubscribe(ctx: MessageContext) {
+        try {
+            val chatID = ctx.chatId()
+            // remove this user from subscribe list
+            subscribeToWeatherUpdateDB.remove(chatID)
+            // send success message
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                You have successfully unsubscribed from daily weather updates in the morning.
+                
+                Please note that due to timezone differences, you may still receive one final weather update notification tomorrow before the change in your subscription status takes effect.
+            """.trimIndent()
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun sendMorningWeatherUpdateMessage() {
+        for (chatID in subscribeToWeatherUpdateDB) {
+            val timezoneOffsetInMillis = timezoneOffsetInMillisDB[chatID] ?: return
+            val reminderTask = Runnable {
+                Thread.sleep(if (timezoneOffsetInMillis < 0) ((24 * 60 * 60 * 1000) + timezoneOffsetInMillis) else timezoneOffsetInMillis)
+                CoroutineScope(Dispatchers.Default).launch {
+                    replyToToday(chatID)
+                }
+            }
+            Thread(reminderTask).start()
+        }
+    }
+
     // utils
     private fun getEmojiForConditionCode(code: Int): String = when (code) {
         1000 -> "☀️"
@@ -215,25 +321,47 @@ class ResponseHandler(
     }
 
     private suspend fun configureLocation(chatID: Long, lat: Double, long: Double) {
-        latitudeDB[chatID] = lat
-        longitudeDB[chatID] = long
         val timezoneResponse = weatherService.getTimezoneResponseByLatLong(lat, long)
-        locationNameDB[chatID] = if (timezoneResponse.location.region.isEmpty()) {
-            "${timezoneResponse.location.name}, ${timezoneResponse.location.country}"
-        } else {
-            "${timezoneResponse.location.name}, ${timezoneResponse.location.region}, ${timezoneResponse.location.country}"
-        }
+        val locationName = getLocationNameFromTimezoneResponse(timezoneResponse)
+        saveLocation(chatID, lat, long, locationName, getUtcOffset(timezoneResponse.location.localtime))
     }
 
     private suspend fun configureLocation(chatID: Long, cityName: String) {
         val timezoneResponse = weatherService.getTimezoneResponseByCityName(cityName)
-        latitudeDB[chatID] = timezoneResponse.location.lat
-        longitudeDB[chatID] = timezoneResponse.location.lon
-        locationNameDB[chatID] = if (timezoneResponse.location.region.isEmpty()) {
+        val lat = timezoneResponse.location.lat
+        val long = timezoneResponse.location.lon
+        val locationName = getLocationNameFromTimezoneResponse(timezoneResponse)
+        saveLocation(chatID, lat, long, locationName, getUtcOffset(timezoneResponse.location.localtime))
+    }
+
+    private fun getLocationNameFromTimezoneResponse(timezoneResponse: TimezoneResponse) =
+        if (timezoneResponse.location.region.isEmpty()) {
             "${timezoneResponse.location.name}, ${timezoneResponse.location.country}"
         } else {
             "${timezoneResponse.location.name}, ${timezoneResponse.location.region}, ${timezoneResponse.location.country}"
         }
+
+    private fun getUtcOffset(dateTimeString: String): TimeZoneOffset {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm")
+        val date = dateFormat.parse(dateTimeString)
+        val timeZone = TimeZone.getDefault()
+        val offsetInMillis = timeZone.getOffset(date.time)
+        val offsetHours = TimeUnit.MILLISECONDS.toHours(offsetInMillis.toLong())
+        val offsetMinutes = TimeUnit.MILLISECONDS.toMinutes(offsetInMillis.toLong()) % 60
+        return TimeZoneOffset(offsetHours = offsetHours, offsetMinutes = offsetMinutes)
+    }
+
+    private fun saveLocation(
+        chatID: Long,
+        lat: Double,
+        long: Double,
+        locationName: String,
+        timezoneOffset: TimeZoneOffset
+    ) {
+        latitudeDB[chatID] = lat
+        longitudeDB[chatID] = long
+        locationNameDB[chatID] = locationName
+        timezoneOffsetInMillisDB[chatID] = timezoneOffset.totalOffsetInMillis
     }
 
     private fun sendLocationNotConfiguredMessage(chatID: Long) {
@@ -245,9 +373,9 @@ class ResponseHandler(
             
             1. By sending me your location directly
             
-            2. By sending me your city's name using the /city command using the format /city <city name>. For example, /city Paris
+            2. By sending me your city's name using the /${CommandConstant.CITY} command using the format /${CommandConstant.CITY} <city name>. For example, /${CommandConstant.CITY} Paris
             
-            3. By sending me your location's latitude and longitude using the /latlong command using the format /latlong <latitude> <longitude>. For example, /latlong 48.8567 2.3508
+            3. By sending me your location's latitude and longitude using the /${CommandConstant.LAT_LONG} command using the format /${CommandConstant.LAT_LONG} <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
         """.trimIndent()
         message.chatId = chatID.toString()
         sender.execute(message)
