@@ -1,16 +1,16 @@
 # WeatherWhiz
 
-<img src="public/Logo.png" alt="WeatherWhiz Logo" width=500 height=500>
+<img src="public/Logo.png" alt="WeatherWhiz Logo" width=250 height=250>
 
 The WeatherWhiz is a simple Telegram bot that allows users to get weather information for their current location or a
-location of their choice.
+location of their choice. Powered by <a href="https://www.weatherapi.com/" title="Weather API">WeatherAPI.com</a>
 
 ## Commands
 
 - **/today** - Shows today's weather information for the configured location.
 - **/weather** - Shows the current weather information for the configured location.
-- **/unsubscribe** - Unsubscribes the user from daily weather updates for the configured location.
 - **/subscribe** - Subscribes the user to daily weather updates for the configured location.
+- **/unsubscribe** - Unsubscribes the user from daily weather updates for the configured location.
 - **/location** - Shows the current configured location for weather information.
 - **/latlong** - Configures the location using latitude and longitude.
 - **/city** - Configures the location using the name of the city.
@@ -23,9 +23,9 @@ the available commands to interact with the bot and get weather information for 
 
 ## Technologies Used
 
-Kotlin programming language
-OpenWeatherMap API for weather information
-Telegram Bot API for bot functionality
+- Kotlin Programming Language
+- WeatherAPI for weather information
+- Telegram Bot API for bot functionality
 
 ## Contributing
 
