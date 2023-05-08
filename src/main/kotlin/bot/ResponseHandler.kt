@@ -252,6 +252,14 @@ class ResponseHandler(
     fun replyToSubscribe(ctx: MessageContext) {
         try {
             val chatID = ctx.chatId()
+            // retrieve the user's lat and long from db
+            val lat: Double? = latitudeDB[chatID]
+            val long: Double? = longitudeDB[chatID]
+            // if the user has not configured their location yet, send the message to ask for it
+            if (lat == null || long == null) {
+                sendLocationNotConfiguredMessage(chatID)
+                return
+            }
             // add this user to subscribe list
             subscribeToWeatherUpdateDB.add(chatID)
             // send success message
