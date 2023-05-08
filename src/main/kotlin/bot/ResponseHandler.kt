@@ -55,9 +55,9 @@ class ResponseHandler(
                 
                 1.  By sending me your location directly
                 
-                2.  By sending me your city's name using /${CommandConstant.CITY}. To do that, please type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+                2.  By sending me your city's name using /${CommandConstant.CITY}. To do that, please type /${CommandConstant.CITY} followed by the name of your city. For example, /${CommandConstant.CITY} Paris
                 
-                3.  By sending me your location's latitude and longitude using /${CommandConstant.LAT_LONG}. To do that, please type /${CommandConstant.CITY} followed by the name of your city. For example, /${CommandConstant.CITY} Paris
+                3.  By sending me your location's latitude and longitude using /${CommandConstant.LAT_LONG}. To do that, please type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude>${"\u00A0"}<longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567${"\u00A0"}2.3508
             """.trimIndent()
             message.chatId = ctx.chatId().toString()
             // sent the welcome message
@@ -76,7 +76,7 @@ class ResponseHandler(
 
                 1. To see the current configured location, type /${CommandConstant.LOCATION} and you will receive the name of the location.
 
-                2. To configure your location using latitude and longitude, type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+                2. To configure your location using latitude and longitude, type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude>${"\u00A0"}<longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567${"\u00A0"}2.3508
 
                 3. To configure your location using city name, type /${CommandConstant.CITY} followed by the name of your city. For example, /${CommandConstant.CITY} Paris
 
@@ -141,8 +141,8 @@ class ResponseHandler(
             message.chatId = chatID.toString()
             message.text = """
                 Mal-formatted input.
-                Format: /${CommandConstant.LAT_LONG} <latitude> <longitude> 
-                For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+                Format: /${CommandConstant.LAT_LONG} <latitude>${"\u00A0"}<longitude> 
+                For example, /${CommandConstant.LAT_LONG} 48.8567${"\u00A0"}2.3508
             """.trimIndent()
             sender.execute(message)
             return
@@ -379,7 +379,7 @@ class ResponseHandler(
             
             2. By sending me your city's name using the /${CommandConstant.CITY} command using the format /${CommandConstant.CITY} <city name>. For example, /${CommandConstant.CITY} Paris
             
-            3. By sending me your location's latitude and longitude using the /${CommandConstant.LAT_LONG} command using the format /${CommandConstant.LAT_LONG} <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+            3. By sending me your location's latitude and longitude using the /${CommandConstant.LAT_LONG} command using the format /${CommandConstant.LAT_LONG} <latitude>${"\u00A0"}<longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567${"\u00A0"}2.3508
         """.trimIndent()
         message.chatId = chatID.toString()
         sender.execute(message)
