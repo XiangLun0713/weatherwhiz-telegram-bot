@@ -55,13 +55,9 @@ class ResponseHandler(
                 
                 1.  By sending me your location directly
                 
-                2.  By sending me your city's name using /${CommandConstant.CITY}
-                        Format: /${CommandConstant.CITY} <city name> 
-                        For example, /${CommandConstant.CITY} Paris
+                2.  By sending me your city's name using /${CommandConstant.CITY}. To do that, please type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
                 
-                3.  By sending me your location's latitude and longitude using /${CommandConstant.LAT_LONG}
-                        Format: /${CommandConstant.LAT_LONG} <latitude> <longitude>
-                        For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
+                3.  By sending me your location's latitude and longitude using /${CommandConstant.LAT_LONG}. To do that, please type /${CommandConstant.CITY} followed by the name of your city. For example, /${CommandConstant.CITY} Paris
             """.trimIndent()
             message.chatId = ctx.chatId().toString()
             // sent the welcome message
@@ -76,21 +72,21 @@ class ResponseHandler(
             // prepare the help message to be sent
             val message = SendMessage()
             message.text = """
-                Thanks for using WeatherWhiz. Here's a quick guide to help you navigate and use our bot effectively:
+                Here's a quick guide to help you use our bot effectively:
 
-                1. To see the current configured location, type /location and you will receive the name of the location.
+                1. To see the current configured location, type /${CommandConstant.LOCATION} and you will receive the name of the location.
 
-                2. To configure your location using latitude and longitude, type /latlong followed by your latitude and longitude in the format <latitude>,<longitude>. For example, /latlong 48.8567,2.3508
+                2. To configure your location using latitude and longitude, type /${CommandConstant.LAT_LONG} followed by your latitude and longitude in the format <latitude> <longitude>. For example, /${CommandConstant.LAT_LONG} 48.8567 2.3508
 
-                3. To configure your location using city name, type /city followed by the name of your city. For example, /city Paris
+                3. To configure your location using city name, type /${CommandConstant.CITY} followed by the name of your city. For example, /${CommandConstant.CITY} Paris
 
-                4. To get today's weather information for your configured location, type /today and you will receive a summary of today's weather.
+                4. To get today's weather information for your configured location, type /${CommandConstant.TODAY} and you will receive a summary of today's weather.
 
-                5. To get the current weather information for your configured location, type /weather and you will receive the current weather information.
+                5. To get the current weather information for your configured location, type /${CommandConstant.WEATHER} and you will receive the current weather information.
 
-                6. To subscribe to daily weather updates for your configured location, type /subscribe and you will receive daily weather updates.
+                6. To subscribe to daily weather updates for your configured location, type /${CommandConstant.SUBSCRIBE} and you will receive daily weather updates.
 
-                7. To unsubscribe from daily weather updates, type /unsubscribe.
+                7. To unsubscribe from daily weather updates, type /${CommandConstant.UNSUBSCRIBE}.
             """.trimIndent()
             message.chatId = ctx.chatId().toString()
             // sent the help message
@@ -205,8 +201,8 @@ class ResponseHandler(
         val lat: Double? = latitudeDB[chatID]
         val long: Double? = longitudeDB[chatID]
         // if the user has not configured their location yet, send the message to ask for it
-        sendLocationNotConfiguredMessage(chatID)
         if (lat == null || long == null) {
+            sendLocationNotConfiguredMessage(chatID)
             return
         }
         try {
@@ -386,6 +382,8 @@ class ResponseHandler(
         message.text = """
             Location configured successfully!
             Your location is ${locationNameDB[chatID]}
+            
+            Type /${CommandConstant.HELP} to see a list of features that I can provide.
         """.trimIndent()
         message.chatId = chatID.toString()
         sender.execute(message)
