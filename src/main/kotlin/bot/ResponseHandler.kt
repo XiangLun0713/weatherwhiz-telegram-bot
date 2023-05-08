@@ -282,14 +282,18 @@ class ResponseHandler(
         try {
             val chatID = ctx.chatId()
             // remove this user from subscribe list
-            subscribeToWeatherUpdateDB.remove(chatID)
+            val existsInDB: Boolean = subscribeToWeatherUpdateDB.remove(chatID)
             // send success message
             val message = SendMessage()
             message.chatId = chatID.toString()
-            message.text = """
+            message.text = if (existsInDB) """
                 You have successfully unsubscribed from daily weather updates in the morning.
                 
                 Please note that due to timezone differences, you may still receive one final weather update notification tomorrow before the change in your subscription status takes effect.
+            """.trimIndent() else """
+                You are not subscribed to the daily weather updates.
+                
+                To subscribe, please enter /${CommandConstant.SUBSCRIBE}
             """.trimIndent()
             sender.execute(message)
         } catch (e: TelegramApiException) {
