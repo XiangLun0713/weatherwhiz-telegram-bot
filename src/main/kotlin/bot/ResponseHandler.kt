@@ -3,10 +3,7 @@ package bot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import models.CurrentResponse
-import models.Day
-import models.TimeZoneOffset
-import models.TimezoneResponse
+import models.*
 import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.MessageContext
 import org.telegram.abilitybots.api.sender.MessageSender
@@ -209,6 +206,8 @@ class ResponseHandler(
             // get today's weather info
             val forecastResponse = weatherService.getForecastResponseByLatLong(lat, long)
             val day: Day = forecastResponse.forecast.forecastday[0].day
+            val hours: List<Hour> = forecastResponse.forecast.forecastday[0].hour
+            val localTime = forecastResponse.location.localtime.substring("yyyy-MM-dd ".length)
             val message = SendMessage()
             message.chatId = chatID.toString()
             message.text = """
@@ -223,7 +222,10 @@ class ResponseHandler(
                 💧 Average Humidity: ${day.avghumidity.toInt()}%
                 
                 ☀️ UV Index: ${day.uv}
-            """.trimIndent()
+                
+                Hourly Weather Information
+            
+            """.trimIndent().plus(getFutureHourInformationByHourList(hours, localTime))
             sender.execute(message)
         } catch (e: TelegramApiException) {
             e.printStackTrace()
@@ -399,5 +401,20 @@ class ResponseHandler(
         """.trimIndent()
         message.chatId = chatID.toString()
         sender.execute(message)
+    }
+
+    private fun getFutureHourInformationByHourList(hours: List<Hour>, localTime: String): String {
+        var result = ""
+        for (hour in hours) {
+            val time = hour.time.substring("yyyy-mm-dd ".length)
+            if (localTime.substring(0, "hh".length) <= time.substring(0, "hh".length)) {
+                result = result.plus(
+                    "$time - ${hour.condition.text} ${
+                        getEmojiForConditionCode(hour.condition.code)
+                    }\n"
+                )
+            }
+        }
+        return result
     }
 }

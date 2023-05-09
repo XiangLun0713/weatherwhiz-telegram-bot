@@ -47,18 +47,6 @@ class WeatherWhizBot(
         return Reply.of(action, Flag.LOCATION)
     }
 
-    // process inline keyboard interactions
-//    fun replyToButtons(): Reply {
-//        val action =
-//            BiConsumer { _: BaseAbilityBot?, upd: Update ->
-//                responseHandler.replyToButtons(
-//                    getChatId(upd),
-//                    upd.callbackQuery.data
-//                )
-//            }
-//        return Reply.of(action, Flag.CALLBACK_QUERY)
-//    }
-
     // welcome the user with greeting message, and prompt user to go to /config
     fun handleStartCommand() = generateAbility(CommandConstant.START) { ctx -> responseHandler.replyToStart(ctx) }
 
@@ -99,7 +87,7 @@ class WeatherWhizBot(
         }
     }
 
-
+    // allow user to configure location by latitude and longitude
     fun handleLatLongCommand() = generateAbility(CommandConstant.LAT_LONG) { ctx: MessageContext ->
         CoroutineScope(Dispatchers.Default).launch {
             responseHandler.replyToLatLong(ctx)
