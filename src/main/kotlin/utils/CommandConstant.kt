@@ -10,4 +10,5 @@ object CommandConstant {
     const val CITY = "city"
     const val HELP = "help"
     const val WEATHER = "weather"
+    const val FORECAST = "forecast"
 }

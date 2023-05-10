@@ -207,7 +207,10 @@ class ResponseHandler(
             val forecastResponse = weatherService.getForecastResponseByLatLong(lat, long)
             val day: Day = forecastResponse.forecast.forecastday[0].day
             val hours: List<Hour> = forecastResponse.forecast.forecastday[0].hour
-            val localTime = forecastResponse.location.localtime.substring("yyyy-MM-dd ".length)
+            val localTime =
+                if (forecastResponse.location.localtime.substring("yyyy-MM-dd ".length).length == "h:mm".length)
+                    "0".plus(forecastResponse.location.localtime.substring("yyyy-MM-dd ".length))
+                else forecastResponse.location.localtime.substring("yyyy-MM-dd ".length)
             val message = SendMessage()
             message.chatId = chatID.toString()
             message.text = """
@@ -296,6 +299,36 @@ class ResponseHandler(
                 You are not subscribed to the daily weather updates.
                 
                 To subscribe, please enter /${CommandConstant.SUBSCRIBE}
+            """.trimIndent()
+            sender.execute(message)
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun replyToForecast(ctx: MessageContext) {
+        try {
+            val chatID = ctx.chatId()
+            // retrieve the user's lat and long from db
+            val lat: Double? = latitudeDB[chatID]
+            val long: Double? = longitudeDB[chatID]
+            // if the user has not configured their location yet, send the message to ask for it
+            if (lat == null || long == null) {
+                sendLocationNotConfiguredMessage(chatID)
+                return
+            }
+            // get forecast response
+            val forecastResponse: ForecastResponse = weatherService.getForecastResponseByLatLong(lat, long)
+            val day1 = forecastResponse.forecast.forecastday[0]
+            val day2 = forecastResponse.forecast.forecastday[1]
+            val day3 = forecastResponse.forecast.forecastday[2]
+            // send message
+            val message = SendMessage()
+            message.chatId = chatID.toString()
+            message.text = """
+                ${day1.date} - ${day1.day.condition.text} ${getEmojiForConditionCode(day1.day.condition.code)}
+                ${day2.date} - ${day2.day.condition.text} ${getEmojiForConditionCode(day2.day.condition.code)}
+                ${day3.date} - ${day3.day.condition.text} ${getEmojiForConditionCode(day3.day.condition.code)}
             """.trimIndent()
             sender.execute(message)
         } catch (e: TelegramApiException) {
@@ -407,7 +440,10 @@ class ResponseHandler(
         var result = ""
         for (hour in hours) {
             val time = hour.time.substring("yyyy-mm-dd ".length)
+            println("time ${time.substring(0, "hh".length)}")
+            println("localtime ${localTime.substring(0, "hh".length)}")
             if (localTime.substring(0, "hh".length) <= time.substring(0, "hh".length)) {
+                println("called")
                 result = result.plus(
                     "$time - ${hour.condition.text} ${
                         getEmojiForConditionCode(hour.condition.code)

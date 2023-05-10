@@ -94,6 +94,13 @@ class WeatherWhizBot(
         }
     }
 
+    // get the next 3 day's weather forecast information
+    fun handleForecastCommand() = generateAbility(CommandConstant.FORECAST) { ctx: MessageContext ->
+        CoroutineScope(Dispatchers.Default).launch {
+            responseHandler.replyToForecast(ctx)
+        }
+    }
+
     private fun generateAbility(name: String, action: (MessageContext) -> Unit): Ability = Ability.builder()
         .name(name)
         .locality(Locality.ALL)
