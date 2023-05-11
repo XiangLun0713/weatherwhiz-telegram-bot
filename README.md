@@ -9,6 +9,7 @@ location of their choice. Powered by <a href="https://www.weatherapi.com/" title
 
 - **/today** - Shows today's weather information for the configured location.
 - **/weather** - Shows the current weather information for the configured location.
+- **/forecast** - Shows the three days weather forecasts for the configured location.
 - **/subscribe** - Subscribes the user to daily weather updates for the configured location.
 - **/unsubscribe** - Unsubscribes the user from daily weather updates for the configured location.
 - **/location** - Shows the current configured location for weather information.
